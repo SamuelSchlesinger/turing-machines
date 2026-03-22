@@ -1,0 +1,6 @@
+name = "Turing"
+version = "0.1.0"
+defaultTargets = ["Turing"]
+
+[[lean_lib]]
+name = "Turing"
