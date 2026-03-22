@@ -66,23 +66,29 @@ def Configuration.update (conf : Configuration Symbol w Q) (write : Multi w (Wri
     q := q',
   }
 
-structure DecisionTM Symbol (w : Nat) Q where
+class FiniteSet (Q : Type) [DecidableEq Q] where
+  cardinality : Nat
+  enumeration : Fin cardinality → Q
+  enumeration_uniqueness : ∀ i j, enumeration i = enumeration j ↔ i = j
+
+structure DecisionTM Symbol (w : Nat) Q [DecidableEq Q]  [FiniteSet Q] where
   q_start : Q
   q_accept : Q
   q_reject : Q
+  q_accept_ne_q_reject : q_accept ≠ q_reject
   transition : TransitionFunction Symbol w Q q_accept q_reject
 
 inductive Decision w Q where
   | decided : Bool → Decision w Q
   | continuation : Configuration Symbol w Q -> Decision w Q
 
-def DecisionTM.accepted [ DecidableEq Q ] (tm : DecisionTM Symbol w Q) (conf : Configuration Symbol w Q) : Prop :=
+def DecisionTM.accepted [ DecidableEq Q ] [ FiniteSet Q ] (tm : DecisionTM Symbol w Q) (conf : Configuration Symbol w Q) : Prop :=
   tm.q_accept = conf.q
 
-def DecisionTM.rejected [ DecidableEq Q ] (tm : DecisionTM Symbol w Q) (conf : Configuration Symbol w Q) : Prop :=
+def DecisionTM.rejected [ DecidableEq Q ] [ FiniteSet Q ] (tm : DecisionTM Symbol w Q) (conf : Configuration Symbol w Q) : Prop :=
   tm.q_reject = conf.q
 
-def DecisionTM.step [ DecidableEq Q ] (tm : DecisionTM Symbol w Q) (conf : Configuration Symbol  w Q) : Decision w Q :=
+def DecisionTM.step [ DecidableEq Q ] [ FiniteSet Q ] (tm : DecisionTM Symbol w Q) (conf : Configuration Symbol  w Q) : Decision w Q :=
   if q_vs_q_accept : conf.q = tm.q_accept then
     .decided true
   else if q_vs_q_reject : conf.q = tm.q_reject then
@@ -91,7 +97,7 @@ def DecisionTM.step [ DecidableEq Q ] (tm : DecisionTM Symbol w Q) (conf : Confi
     let (write, q', dirs) := tm.transition (conf.read, ⟨ conf.q, ⟨ q_vs_q_accept, q_vs_q_reject ⟩ ⟩)
    .continuation (conf.update write q' dirs)
 
-inductive reachesIn [ DecidableEq Q ] (tm : DecisionTM Symbol w Q)
+inductive reachesIn [ DecidableEq Q ] [ FiniteSet Q ] (tm : DecisionTM Symbol w Q)
   : Nat → Configuration Symbol w Q → Configuration Symbol w Q → Prop where
   | reached : reachesIn tm 0 conf conf
   | withStep :
@@ -99,7 +105,7 @@ inductive reachesIn [ DecidableEq Q ] (tm : DecisionTM Symbol w Q)
       → reachesIn tm n conf' conf''
       → reachesIn tm (n + 1) conf conf''
 
-def initialConfiguration 
+def DecisionTM.initialConfiguration [ DecidableEq Q ] [ FiniteSet Q ] 
   (tm : DecisionTM Symbol w Q)
   (input : Fin n → Symbol) : Configuration Symbol w Q :=
   {
@@ -122,16 +128,36 @@ def SymbolString Symbol n := Fin n → Symbol
 
 def BitString n := SymbolString Bool n
 
-def acceptsIn [ DecidableEq Q ] (tm : DecisionTM Symbol w Q)
+def DecisionTM.acceptsIn [ DecidableEq Q ] [ FiniteSet Q ] (tm : DecisionTM Symbol w Q)
   (steps : Nat)
   (input : SymbolString Symbol n) : Prop :=
-  ∃ conf', reachesIn tm steps (initialConfiguration tm input) conf' ∧ tm.accepted conf'
+  ∃ conf', reachesIn tm steps (tm.initialConfiguration input) conf' ∧ tm.accepted conf'
 
-def rejectsIn [ DecidableEq Q ] (tm : DecisionTM Symbol w Q)
+def DecisionTM.rejectsIn [ DecidableEq Q ] [ FiniteSet Q ] (tm : DecisionTM Symbol w Q)
   (steps : Nat)
   (input : SymbolString Symbol n) : Prop :=
-  ∃ conf', reachesIn tm steps (initialConfiguration tm input) conf' ∧ tm.rejected conf'
+  ∃ conf', reachesIn tm steps (tm.initialConfiguration input) conf' ∧ tm.rejected conf'
 
-def haltsIn [ DecidableEq Q ] (tm : DecisionTM Symbol w Q)
+def DecisionTM.haltsIn [ DecidableEq Q ] [ FiniteSet Q ] (tm : DecisionTM Symbol w Q)
   (steps : Nat)
   (input : SymbolString Symbol n) : Prop := acceptsIn tm steps input ∨ rejectsIn tm steps input
+
+abbrev Language Symbol := ∀ n, SymbolString Symbol n → Prop
+
+def DecisionTM.recognizesIn [ DecidableEq Q ] [ FiniteSet Q ]
+  (tm : DecisionTM Symbol w Q)
+  (L : Language Symbol)
+  (T : Nat → Nat)
+  := ∀ n s, L n s ↔ tm.acceptsIn (T n) s
+
+def DecisionTM.coRecognizesIn [ DecidableEq Q ] [ FiniteSet Q ]
+  (tm : DecisionTM Symbol w Q)
+  (L : Language Symbol)
+  (T : Nat → Nat)
+  := ∀ n s, ¬ L n s ↔ tm.rejectsIn (T n) s
+
+def DecisionTM.decidesIn [ DecidableEq Q ] [ FiniteSet Q ]
+  (tm : DecisionTM Symbol w Q)
+  (L : Language Symbol)
+  (T : Nat → Nat)
+  := tm.recognizesIn L T ∧ tm.coRecognizesIn L T
