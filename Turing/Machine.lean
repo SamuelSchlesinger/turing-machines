@@ -118,12 +118,20 @@ def initialConfiguration
     q := tm.q_start
   }
 
+def SymbolString Symbol n := Fin n → Symbol
+
+def BitString n := SymbolString Bool n
+
 def acceptsIn [ DecidableEq Q ] (tm : DecisionTM Symbol w Q)
   (steps : Nat)
-  (input : Fin n → Symbol) : Prop :=
+  (input : SymbolString Symbol n) : Prop :=
   ∃ conf', reachesIn tm steps (initialConfiguration tm input) conf' ∧ tm.accepted conf'
 
 def rejectsIn [ DecidableEq Q ] (tm : DecisionTM Symbol w Q)
   (steps : Nat)
-  (input : Fin n → Symbol) : Prop :=
+  (input : SymbolString Symbol n) : Prop :=
   ∃ conf', reachesIn tm steps (initialConfiguration tm input) conf' ∧ tm.rejected conf'
+
+def haltsIn [ DecidableEq Q ] (tm : DecisionTM Symbol w Q)
+  (steps : Nat)
+  (input : SymbolString Symbol n) : Prop := acceptsIn tm steps input ∨ rejectsIn tm steps input
