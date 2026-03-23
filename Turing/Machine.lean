@@ -19,6 +19,12 @@ inductive Alphabet Symbol where
   | symbol : Symbol → Alphabet Symbol
   deriving DecidableEq
 
+def stays : Multi w Dir { d : Dir // d ≠ .left } :=
+  { input := .stay,
+    work := λ _ ↦ .stay,
+    output := ⟨ .stay, by grind ⟩
+  }
+
 abbrev TransitionFunction (Symbol : Type) (w : Nat) Q q_accept q_reject :=
   Multi w (Alphabet Symbol) × { q : Q // q ≠ q_accept ∧ q ≠ q_reject }
     → Multi w (Alphabet Symbol) × Q × Multi w Dir { d : Dir // d ≠ Dir.left }
@@ -96,9 +102,13 @@ inductive reachesIn [ DecidableEq Q ] [ FiniteSet Q ] (tm : TM Symbol w Q)
       → reachesIn tm n conf' conf''
       → reachesIn tm (n + 1) conf conf''
 
+def SymbolString Symbol n := Fin n → Symbol
+
+def BitString n := SymbolString Bool n
+
 def TM.initialConfiguration [ DecidableEq Q ] [ FiniteSet Q ] 
   (tm : TM Symbol w Q)
-  (input : Fin n → Symbol) : Configuration Symbol w Q :=
+  (input : SymbolString Symbol n) : Configuration Symbol w Q :=
   {
     multitape := {
       input := λ i ↦ match i with
@@ -114,10 +124,6 @@ def TM.initialConfiguration [ DecidableEq Q ] [ FiniteSet Q ]
     },
     q := tm.q_start
   }
-
-def SymbolString Symbol n := Fin n → Symbol
-
-def BitString n := SymbolString Bool n
 
 def TM.acceptsIn [ DecidableEq Q ] [ FiniteSet Q ] (tm : TM Symbol w Q)
   (steps : Nat)
@@ -237,8 +243,15 @@ def TM.composition [ DecidableEq Q ] [ FiniteSet Q ] [ DecidableEq Q' ] [ Finite
     q_accept_ne_q_reject := by grind,
     transition := λ (reads, q) ↦
       match q.1 with
-      | .P0 q1 => sorry
+      | .P0 q1 =>
+        if tm0.q_accept = q1 then
+          (reads, .Rewind, stays)
+        else if tm0.q_reject = q1 then
+          sorry
+        else
+          sorry
       | .Rewind => sorry
       | .P1 q2 => sorry
-      | .Reject => sorry
+      | .Reject => by
+        sorry
   }
