@@ -30,7 +30,7 @@ def WriteAlphabet.toRead (w : WriteAlphabet Symbol) : ReadAlphabet Symbol :=
 
 abbrev TransitionFunction (Symbol : Type) (w : Nat) Q q_accept q_reject :=
   Multi w (ReadAlphabet Symbol) × { q : Q // q ≠ q_accept ∧ q ≠ q_reject }
-    → Multi w (WriteAlphabet Symbol) × Q × Multi w Dir { d : Dir // d ≠ Dir.left }
+    → Multi w (Option (WriteAlphabet Symbol)) × Q × Multi w Dir { d : Dir // d ≠ Dir.left }
 
 abbrev Tape Symbol := Int → ReadAlphabet Symbol
 
@@ -51,7 +51,7 @@ def fupdate {α : Sort u} {β : α → Sort v} [DecidableEq α] (f : ∀ a, β a
 
 notation f "[" a' " ↦ " v "]" => fupdate f a' v
 
-def Configuration.update (conf : Configuration Symbol w Q) (write : Multi w (WriteAlphabet Symbol)) (q' : Q) (dirs : Multi w Dir { d : Dir // d ≠ Dir.left} ) : Configuration Symbol w Q :=
+def Configuration.update (conf : Configuration Symbol w Q) (write : Multi w (Option (WriteAlphabet Symbol))) (q' : Q) (dirs : Multi w Dir { d : Dir // d ≠ Dir.left} ) : Configuration Symbol w Q :=
   { 
     multitape := {
       input := conf.multitape.input[conf.indices.input ↦ write.input.toRead],
@@ -244,5 +244,5 @@ def TM.composition [ DecidableEq Q ] [ FiniteSet Q ] [ DecidableEq Q' ] [ Finite
     q_accept := .P2 tm1.q_accept,
     q_reject := .Reject,
     q_accept_ne_q_reject := by grind,
-    transition := sorry
+    transition := λ (reads, q) ↦ sorry
   }
