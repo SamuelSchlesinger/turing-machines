@@ -14,32 +14,23 @@ def Dir.movement (d : Dir) : Int :=
   | .stay => 0
   | .right => 1
 
-inductive Alphabet α Symbol where
-  | blank : α → Alphabet α Symbol
-  | symbol : Symbol → Alphabet α Symbol
+inductive Alphabet Symbol where
+  | blank : Alphabet Symbol
+  | symbol : Symbol → Alphabet Symbol
   deriving DecidableEq
 
-abbrev WriteAlphabet Symbol := Alphabet Empty Symbol
-
-abbrev ReadAlphabet Symbol := Alphabet Unit Symbol
-
-def WriteAlphabet.toRead (w : WriteAlphabet Symbol) : ReadAlphabet Symbol :=
-  match w with
-  | .blank a => nomatch a
-  | .symbol x => Alphabet.symbol x
-
 abbrev TransitionFunction (Symbol : Type) (w : Nat) Q q_accept q_reject :=
-  Multi w (ReadAlphabet Symbol) × { q : Q // q ≠ q_accept ∧ q ≠ q_reject }
-    → Multi w (Option (WriteAlphabet Symbol)) × Q × Multi w Dir { d : Dir // d ≠ Dir.left }
+  Multi w (Alphabet Symbol) × { q : Q // q ≠ q_accept ∧ q ≠ q_reject }
+    → Multi w (Alphabet Symbol) × Q × Multi w Dir { d : Dir // d ≠ Dir.left }
 
-abbrev Tape Symbol := Int → ReadAlphabet Symbol
+abbrev Tape Symbol := Int → Alphabet Symbol
 
 structure Configuration Symbol (w : Nat) Q where
   multitape : Multi w (Tape Symbol)
   indices : Multi w Int
   q : Q
 
-def Configuration.read (conf : Configuration Symbol w Q) : Multi w (ReadAlphabet Symbol) :=
+def Configuration.read (conf : Configuration Symbol w Q) : Multi w (Alphabet Symbol) :=
   {
     input := conf.multitape.input conf.indices.input,
     work := λ i ↦ conf.multitape.work i (conf.indices.work i),
@@ -51,12 +42,12 @@ def fupdate {α : Sort u} {β : α → Sort v} [DecidableEq α] (f : ∀ a, β a
 
 notation f "[" a' " ↦ " v "]" => fupdate f a' v
 
-def Configuration.update (conf : Configuration Symbol w Q) (write : Multi w (Option (WriteAlphabet Symbol))) (q' : Q) (dirs : Multi w Dir { d : Dir // d ≠ Dir.left} ) : Configuration Symbol w Q :=
+def Configuration.update (conf : Configuration Symbol w Q) (write : Multi w (Alphabet Symbol)) (q' : Q) (dirs : Multi w Dir { d : Dir // d ≠ Dir.left} ) : Configuration Symbol w Q :=
   { 
     multitape := {
-      input := conf.multitape.input[conf.indices.input ↦ write.input.toRead],
-      work := λ i ↦ (conf.multitape.work i)[ (conf.indices.work i) ↦ (write.work i).toRead],
-      output := conf.multitape.output[conf.indices.output ↦ write.output.toRead],
+      input := conf.multitape.input[conf.indices.input ↦ write.input],
+      work := λ i ↦ (conf.multitape.work i)[ (conf.indices.work i) ↦ write.work i],
+      output := conf.multitape.output[conf.indices.output ↦ write.output],
     },
     indices := {
       input := conf.indices.input + dirs.input.movement,
@@ -111,10 +102,10 @@ def TM.initialConfiguration [ DecidableEq Q ] [ FiniteSet Q ]
   {
     multitape := {
       input := λ i ↦ match i with
-                     | .ofNat i => if i_le_n : i < n then .symbol (input ⟨ i, i_le_n ⟩) else .blank ()
-                     | .negSucc _ => .blank ()
-      work := λ _ _ ↦ .blank (),
-      output := λ _ ↦ .blank (),
+                     | .ofNat i => if i_le_n : i < n then .symbol (input ⟨ i, i_le_n ⟩) else .blank
+                     | .negSucc _ => .blank
+      work := λ _ _ ↦ .blank,
+      output := λ _ ↦ .blank,
     },
     indices := {
       input := 0,
@@ -180,13 +171,13 @@ inductive CompositionState Q Q' where
   /- First, we execute the first program, treating an extra work tape as an output tape. 
      If it rejects, we short-circuit and reject as well.
   -/
-  | P1 : Q → CompositionState Q Q'
+  | P0 : Q → CompositionState Q Q'
   /- Then, we rewind that work tape to the beginning, as if it is the input tape. -/
   | Rewind : CompositionState Q Q'
   /- Finally, we run the second program. If it rejects, we reject as well. If it accepts,
      we accept.
   -/
-  | P2 : Q' → CompositionState Q Q'
+  | P1 : Q' → CompositionState Q Q'
   /- We use a shared rejection state, as we have a single rejection state in our definition of
      Turing machine.
   -/
@@ -198,9 +189,9 @@ instance [DecidableEq Q] [DecidableEq Q'] [fsQ : FiniteSet Q] [fsQ' : FiniteSet 
     cardinality := fsQ.cardinality + fsQ'.cardinality + 1
     enumeration i :=
       if i_in_Q : i.1 < fsQ.cardinality then
-        .P1 (fsQ.enumeration ⟨ i.1, by omega ⟩)
+        .P0 (fsQ.enumeration ⟨ i.1, by omega ⟩)
       else if i_in_Q' : i.1 < fsQ'.cardinality + fsQ.cardinality then
-        .P2 (fsQ'.enumeration ⟨ i.1 - fsQ.cardinality, by omega ⟩)
+        .P1 (fsQ'.enumeration ⟨ i.1 - fsQ.cardinality, by omega ⟩)
       else
         .Rewind
     enumeration_uniqueness := by
@@ -240,9 +231,14 @@ def TM.composition [ DecidableEq Q ] [ FiniteSet Q ] [ DecidableEq Q' ] [ Finite
   (tm0 : TM Symbol w Q) (tm1 : TM Symbol w' Q')
   : TM Symbol (w + w' + 1) (CompositionState Q Q') :=
   {
-    q_start := .P1 tm0.q_start,
-    q_accept := .P2 tm1.q_accept,
+    q_start := .P0 tm0.q_start,
+    q_accept := .P1 tm1.q_accept,
     q_reject := .Reject,
     q_accept_ne_q_reject := by grind,
-    transition := λ (reads, q) ↦ sorry
+    transition := λ (reads, q) ↦
+      match q.1 with
+      | .P0 q1 => sorry
+      | .Rewind => sorry
+      | .P1 q2 => sorry
+      | .Reject => sorry
   }
