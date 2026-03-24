@@ -1,3 +1,3 @@
 # Turing Machines
 
-A low dependency, human-quality formalization of Turing Machines.
+A low dependency, readable formalization of Turing Machines.
